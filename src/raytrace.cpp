@@ -2,6 +2,8 @@
 #include "intersect.h"
 #include "vmath.h"
 
+
+
 vec3f material_brdf() {
 	return one3f;
 }
@@ -17,7 +19,7 @@ vec3f compute_light_direction(const Scene &scene, const Light &light, intersecti
 	// direction: l = (S - P) / | S - P |
 	//vec3f point_in_light_frame = transform_point_inverse(light.frame, intersection.pos);
 	//return (light.frame.o - point_in_light_frame) / dist(light.frame.o, point_in_light_frame);
-	vec3f light_src_in_camera_frame = transform_point_inverse(scene.camera->frame, light.frame.o);
+	vec3f light_src_in_camera_frame = transform_point(scene.camera->frame, light.frame.o);
 	return (light_src_in_camera_frame - intersection.pos) / dist(light_src_in_camera_frame, intersection.pos);
 }
 
@@ -69,26 +71,22 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		if (light_color == zero3f) continue;
 
 		vec3f light_direction = compute_light_direction(*scene, *light, intersection);
-		
-		//ray3f sr = transform_ray(scene->lights->f, light_shadow_ray(l, transform_point_inverse(scene->lights->f, intersection.f.o)));
-		//vec3f cl = sc * material_brdf(intersection.mat, intersection.f, sr.d, -ray.d) * max(0.0f, dot(intersection.f.z, sr.d));
-		
-		//vec3f cl = light_color * material_brdf() * max(0.0f, dot(intersection.norm, a.d));
 
-		vec3f cl = intersection.mat->kd * dot(intersection.norm, light_direction);
-
+		vec3f l = normalize(light->frame.o - intersection.pos);
+		vec3f v = normalize(scene->camera->frame.o - intersection.pos);
+		vec3f h = (l + v) / length(l + v);
+		float dotres = dot(intersection.norm, h);
+		vec3f cl = pow(max(0.0, dotres),0.5) * intersection.mat->ks*light_color;
 		/*
-		message("light direction: x: %f y: %f z: %f\n", light_direction.x, light_direction.y, light_direction.z);
-		message("light color: x: %f y: %f z: %f\n", light_color.x, light_color.y, light_color.z);
-		message("intersection in light frame: x: %f y: %f z: %f\n", intersection.norm.x, intersection.norm.y, intersection.norm.z);
-		message("cl: x: %f y: %f z: %f\n", cl.x, cl.y, cl.z);
+		message("light_direction "); print_vector(light_direction);
+		message("light frame origin "); print_vector(light->frame.o);
+		message("intersection position "); print_vector(intersection.pos);
 		*/
 
-		//if (cl == zero3f) continue;
-		//if (opts.shadows) {
-		//	if (not intersect_scene_any(scene, sr)) c += cl;
-		//}*/
-		//else c += cl;
+		//vec3f cl2 = intersection.mat->kd * dot(intersection.norm, light_direction) * normalize(light_color);
+
+		//vec3f cl = dot(intersection.norm, light_direction)
+
 		res += cl;
 	}
     
@@ -116,21 +114,19 @@ image3f raytrace(Scene* scene) {
 		// foreach pixel
 		for (int y = 0; y < scene->image_height ; y++) {
 			for (int x = 0; x < scene->image_width; x++) {
-				// compute ray-camera parameters (u,v) for the pixel
 				
-				//what is this
+				// compute ray-camera parameters (u,v) for the pixel
 				float u = (x + 0.5f) / scene->image_width;
 				float v = (y + 0.5f) / scene->image_height;
 
 				// compute camera ray
-				vec2f uv = vec2f(u, v);
 				Camera* camera = scene->camera;
-				//WHAT IS THIS
-				auto q = vec3f((uv.x - 0.5f)*scene->camera->width, (uv.y - 0.5f)*scene->camera->height, -scene->camera->dist);
+
+				auto q = vec3f((u - 0.5f)*camera->width, (v - 0.5f)*camera->height, -camera->dist);
 				ray3f ray = ray3f(zero3f, normalize(q));
+
 				// set pixel to the color raytraced with the ray
-				//ok...
-				image.at(x, scene->image_height - 1 - y) = raytrace_ray(scene, ray);		
+				image.at(x, y) = raytrace_ray(scene, ray);		
 			}
 		}	
 	}

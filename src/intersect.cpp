@@ -1,6 +1,10 @@
 #include "scene.h"
 #include "intersect.h"
 
+void print_vector(vec3f vec) {
+	message("%f %f %f\n", vec.x, vec.y, vec.z);
+}
+
 intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance) {
 	
 	intersection3f interx = intersection3f();
@@ -20,7 +24,9 @@ intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surfac
 		return interx;
 	}
 
-	auto t = -ray.e.z / ray.d.z;
+	//auto t = -ray.e.z / ray.d.z;
+	auto t = dot(surface.frame.o - ray.e, surface.frame.z) / dot(ray.d, surface.frame.z);
+	
 
 	// check if computed param is within ray.tmin and ray.tmax
 	if (t < ray.tmin or t > ray.tmax) {
@@ -48,6 +54,50 @@ intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surfac
 	return interx;
 }
 
+intersection3f intersect_sphere(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance) {
+
+	intersection3f interx = intersection3f();
+
+	auto a = lengthSqr(ray.d);
+	auto b = 2 * dot(ray.d, ray.e - surface.frame.o);
+	auto c = lengthSqr(ray.e - surface.frame.o) - surface.radius*surface.radius;
+	auto d = b*b - 4 * a*c;
+
+	if (d < 0) {
+		interx.hit = false;
+		return interx;
+	}
+
+	auto tmin = (-b - sqrt(d)) / (2 * a);
+	auto tmax = (-b + sqrt(d)) / (2 * a);
+
+	float t;
+
+	// check if computed param is within ray.tmin and ray.tmax
+	if (tmin >= ray.tmin && tmin <= ray.tmax) t = tmin;
+	else if (tmax >= ray.tmin && tmax <= ray.tmax) t = tmax;
+	else {
+		interx.hit = false;
+		return interx;
+	}
+
+	// compute ray intersection (and ray parameter), continue if not hit
+	auto p = ray.eval(t);
+	auto pl = normalize(p - surface.frame.o);
+
+	// if hit, set intersection record values
+	if (t < mindistance) {
+		interx.ray_t = t;
+		interx.hit = true;
+		interx.mat = surface.mat;
+		interx.pos = p;
+		interx.norm = pl;
+		mindistance = t;
+	}
+
+	return interx;
+}
+
 // intersects the scene's surfaces and return the first intrerseciton (used for raytracing homework)
 intersection3f intersect_surfaces(Scene* scene, ray3f ray) {
     
@@ -60,72 +110,15 @@ intersection3f intersect_surfaces(Scene* scene, ray3f ray) {
 
     // foreach surface
 	for (Surface* surface : scene->surfaces) {
-		// if it is a quad
-		if (surface->isquad) {
+		
+		if (surface->isquad) {		// if it is a quad
 			intersection3f intersectiontmp = intersect_quad(*scene, ray, *surface, mindistance);
 			if (intersectiontmp.hit) intersection = intersectiontmp;
-		}
-		else { // if it is a sphere
-
-			// NOPE CHECK EVERYTHING
-			// CHECK. EVERYTHING.
-			auto a = lengthSqr(ray.d);
-			auto b = 2 * dot(ray.d, ray.e - surface->frame.o);
-			auto c = lengthSqr(ray.e - surface->frame.o) - surface->radius*surface->radius;
-			auto d = b*b - 4 * a*c;
-			
-			if (d < 0) {
-				intersection.hit = false;
-				//return intersection;
-				break;
-			}
-
-			auto tmin = (-b - sqrt(d)) / (2 * a);
-			auto tmax = (-b + sqrt(d)) / (2 * a);
-
-			float t;
-
-			// check if computed param is within ray.tmin and ray.tmax
-			if (tmin >= ray.tmin && tmin <= ray.tmax) t = tmin;
-			else if (tmax >= ray.tmin && tmax <= ray.tmax) t = tmax;
-			else {
-				intersection.hit = false;
-				//return intersection;
-				break;
-			}
-
-			// compute ray intersection (and ray parameter), continue if not hit
-			auto p = ray.eval(t);
-			auto pl = (p - surface->frame.o) / surface->radius;
-
-			auto phi = atan2(pl.y, pl.x);
-			auto theta = acos(pl.z);
-			auto ct = cos(theta);
-			auto st = sin(theta);
-			auto cp = cos(phi);
-			auto sp = sin(phi);
-
-			frame3f f = frame3f();
-			f.o = p;
-			f.x = vec3f(sp, cp, 0);
-			f.y = vec3f(ct*cp, ct*sp, st);
-			f.z = pl;
-
-			// if hit, set intersection record values
-			vec3f aa = transform_point(scene->camera->frame, intersection.pos);
-			if (t < mindistance) {
-				intersection.ray_t = t;
-				intersection.hit = true;
-				intersection.mat = surface->mat;
-				intersection.pos = p;
-				intersection.norm = f.z;
-				mindistance = t;
-			}
-
+		} else {					// if it is a sphere
+			intersection3f intersectiontmp = intersect_sphere(*scene, ray, *surface, mindistance);
+			if (intersectiontmp.hit) intersection = intersectiontmp;
 		}
 	}
-
-            // check if this is the closest intersection, continue if not
                 
     // record closest intersection
     return intersection;
