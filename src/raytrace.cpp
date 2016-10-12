@@ -3,25 +3,6 @@
 #include "vmath.h"
 
 
-
-vec3f material_brdf() {
-	return one3f;
-}
-
-vec3f compute_color(const Scene &scene, const Light &light, intersection3f intersection) {
-	// distSqr computes distance squared between two points, in this case the origin of the light and the 
-	// point of the intersection transformed into light->frame coords
-	//return light.intensity / dist(light.frame.o, transform_point_inverse(light.frame, intersection.pos));
-	return intersection.mat->ks / dist(light.frame.o, intersection.pos);
-}
-
-vec3f compute_light_direction(const Scene &scene, const Light &light, intersection3f intersection) {
-	// direction: l = (S - P) / | S - P |
-	//vec3f point_in_light_frame = transform_point_inverse(light.frame, intersection.pos);
-
-	return (light.frame.o - intersection.pos) / dist(light.frame.o, intersection.pos);
-}
-
 // compute the color corresponing to a ray by raytracing
 vec3f raytrace_ray(Scene* scene, ray3f ray) {
     
@@ -71,7 +52,6 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		vec3f v = normalize(scene->camera->frame.o - P);
 		vec3f h = (l + v) / length(l + v);
 		vec3f light_color = light->intensity / distSqr(S , P);
-		//if (light_color == zero3f) continue;
 		vec3f light_direction = normalize((S - P)/abs(dist(S, P)));
 		float dotres = abs(dot(intersection.norm, h));
 
@@ -84,42 +64,18 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		else shadowfloat = 1;
 
 		vec3f cl = light_color * shadowfloat * (intersection.mat->kd + intersection.mat->ks * pow(max(0.0, dotres), intersection.mat->n)) * abs(dot(l, intersection.norm));
-		//if (cl == zero3f) continue;
-		//vec3f cl = light_color;
-		/*vec3f light_color = normalize(compute_color(*scene, *light, intersection));
-		if (light_color == zero3f) continue;
-
-		vec3f light_direction = compute_light_direction(*scene, *light, intersection);
-
-		vec3f l = normalize(light->frame.o - intersection.pos);
-		vec3f v = normalize(scene->camera->frame.o - intersection.pos);
-		vec3f h = normalize((l + v) / length(l + v));
-		float dotres = dot(intersection.norm, h);
-		vec3f cl = pow(max(0.0, dotres),10) * intersection.mat->ks * light_color;*/
-		/*
-		message("light_direction "); print_vector(light_direction);
-		message("light frame origin "); print_vector(light->frame.o);
-		message("intersection position "); print_vector(intersection.pos);
-		*/
-
-		//vec3f cl2 = intersection.mat->kd * dot(intersection.norm, light_direction) * normalize(light_color);
-
-		//vec3f cl = dot(intersection.norm, light_direction)
 
 		res += cl;
 	}
-    
-        // compute light response
-        // compute light direction
-        // compute the material response (brdf*cos)
-        // check for shadows and accumulate if needed
-    
-    // if the material has reflections
-        // create the reflection ray
-        // accumulate the reflected light (recursive call) scaled by the material reflection
 
-    // return the accumulated color∫
-    //return zero3f;
+	vec3f reflectionvector = zero3f;
+	if (not (intersection.mat->kr == zero3f)) {
+		ray3f reflectionray = ray3f(intersection.pos, ray.d - intersection.norm * 2 * dot(ray.d, intersection.norm));
+		reflectionvector = intersection.mat->kr * raytrace_ray(scene, reflectionray);
+	}
+
+	res += reflectionvector;
+   
 	return res;
 }
 
@@ -173,17 +129,6 @@ image3f raytrace(Scene* scene) {
 		}
 	}
         
-    // else
-        // foreach pixel
-                // init accumulated color
-                // foreach sample
-                        // compute ray-camera parameters (u,v) for the pixel and the sample
-                        // compute camera ray
-                        // set pixel to the color raytraced with the ray
-                // scale by the number of samples
-    
-
-    // done
     return image;
 }
 
