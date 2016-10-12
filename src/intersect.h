@@ -53,6 +53,8 @@ inline ray3f transform_ray_inverse(const frame3f& f, const ray3f& v) { return ra
 
 // intersects the scene's surfaces and return the first intrerseciton (used for raytracing homework)
 intersection3f intersect_surfaces(Scene* scene, ray3f ray);
+intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance);
+intersection3f intersect_sphere(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance);
 
 void print_vector(vec3f vec);
 

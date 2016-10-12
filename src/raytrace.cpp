@@ -12,15 +12,14 @@ vec3f compute_color(const Scene &scene, const Light &light, intersection3f inter
 	// distSqr computes distance squared between two points, in this case the origin of the light and the 
 	// point of the intersection transformed into light->frame coords
 	//return light.intensity / dist(light.frame.o, transform_point_inverse(light.frame, intersection.pos));
-	return light.intensity / dist(transform_point_inverse(scene.camera->frame, light.frame.o), intersection.pos);
+	return intersection.mat->ks / dist(light.frame.o, intersection.pos);
 }
 
 vec3f compute_light_direction(const Scene &scene, const Light &light, intersection3f intersection) {
 	// direction: l = (S - P) / | S - P |
 	//vec3f point_in_light_frame = transform_point_inverse(light.frame, intersection.pos);
-	//return (light.frame.o - point_in_light_frame) / dist(light.frame.o, point_in_light_frame);
-	vec3f light_src_in_camera_frame = transform_point(scene.camera->frame, light.frame.o);
-	return (light_src_in_camera_frame - intersection.pos) / dist(light_src_in_camera_frame, intersection.pos);
+
+	return (light.frame.o - intersection.pos) / dist(light.frame.o, intersection.pos);
 }
 
 // compute the color corresponing to a ray by raytracing
@@ -35,11 +34,10 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 	if (not intersection.hit) return scene->background;
     
 	// accumulate color starting with ambient
-	res += scene->ambient * intersection.mat->ke;
+	res += (scene->ambient * intersection.mat->kd);
 
 	// foreach light
 	for (auto light : scene->lights) {
-
 		/*
 		*	LAMBERT lighting model
 		*	----------------------
@@ -67,16 +65,37 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		*	color: L = kl / | S - P |
 		*/
 		
-		vec3f light_color = compute_color(*scene, *light, intersection);
+		vec3f S = light->frame.o;
+		vec3f P = intersection.pos;
+		vec3f l = normalize(S - P);
+		vec3f v = normalize(scene->camera->frame.o - P);
+		vec3f h = (l + v) / length(l + v);
+		vec3f light_color = light->intensity / distSqr(S , P);
+		//if (light_color == zero3f) continue;
+		vec3f light_direction = normalize((S - P)/abs(dist(S, P)));
+		float dotres = abs(dot(intersection.norm, h));
+
+		float shadowfloat = 0;
+		ray3f shadowray = ray3f();
+		shadowray.e = intersection.pos;
+		shadowray.d = l;
+		intersection3f inter = intersect_surfaces(scene, shadowray);
+		if (inter.hit) shadowfloat = 0;
+		else shadowfloat = 1;
+
+		vec3f cl = light_color * shadowfloat * (intersection.mat->kd + intersection.mat->ks * pow(max(0.0, dotres), intersection.mat->n)) * abs(dot(l, intersection.norm));
+		//if (cl == zero3f) continue;
+		//vec3f cl = light_color;
+		/*vec3f light_color = normalize(compute_color(*scene, *light, intersection));
 		if (light_color == zero3f) continue;
 
 		vec3f light_direction = compute_light_direction(*scene, *light, intersection);
 
 		vec3f l = normalize(light->frame.o - intersection.pos);
 		vec3f v = normalize(scene->camera->frame.o - intersection.pos);
-		vec3f h = (l + v) / length(l + v);
+		vec3f h = normalize((l + v) / length(l + v));
 		float dotres = dot(intersection.norm, h);
-		vec3f cl = pow(max(0.0, dotres),0.5) * intersection.mat->ks*light_color;
+		vec3f cl = pow(max(0.0, dotres),10) * intersection.mat->ks * light_color;*/
 		/*
 		message("light_direction "); print_vector(light_direction);
 		message("light frame origin "); print_vector(light->frame.o);
@@ -110,7 +129,7 @@ image3f raytrace(Scene* scene) {
     auto image = image3f(scene->image_width, scene->image_height);
     
     // if no anti-aliasing
-	if (true) {  
+	if (scene->image_samples == 1) {  
 		// foreach pixel
 		for (int y = 0; y < scene->image_height ; y++) {
 			for (int x = 0; x < scene->image_width; x++) {
@@ -122,13 +141,36 @@ image3f raytrace(Scene* scene) {
 				// compute camera ray
 				Camera* camera = scene->camera;
 
-				auto q = vec3f((u - 0.5f)*camera->width, (v - 0.5f)*camera->height, -camera->dist);
-				ray3f ray = ray3f(zero3f, normalize(q));
+				frame3f f = camera->frame;
+
+				auto q = (u - 0.5f) * camera->width * f.x + (v - 0.5f) * camera->height * f.y + -camera->dist * f.z;
+				ray3f ray = ray3f(scene->camera->frame.o, normalize(q));
 
 				// set pixel to the color raytraced with the ray
 				image.at(x, y) = raytrace_ray(scene, ray);		
 			}
 		}	
+	}
+	else {
+		int number_of_samples = scene->image_samples;
+		for (int y = 0; y < scene->image_height; y++) {
+			for (int x = 0; x < scene->image_width; x++) {
+				vec3f c = zero3f;
+				for (int yy = 0; yy < number_of_samples; yy++) {
+					for (int xx = 0; xx < number_of_samples; xx++) {
+						float u = (x + (xx+0.5f)/number_of_samples) / scene->image_width;
+						float v = (y + (yy + 0.5f) / number_of_samples) / scene->image_height;
+						Camera* camera = scene->camera;
+						frame3f f = camera->frame;
+
+						auto q = (u - 0.5f) * camera->width * f.x + (v - 0.5f) * camera->height * f.y + -camera->dist * f.z;
+						ray3f ray = ray3f(scene->camera->frame.o, normalize(q));
+						c += raytrace_ray(scene, ray);
+					}
+				}
+				image.at(x, y) = c / pow(number_of_samples, 2);
+			}
+		}
 	}
         
     // else

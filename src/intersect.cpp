@@ -5,7 +5,7 @@ void print_vector(vec3f vec) {
 	message("%f %f %f\n", vec.x, vec.y, vec.z);
 }
 
-intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance) {
+intersection3f intersect_quad(const Scene &scene, ray3f &ray, const Surface &surface, float mindistance) {
 	
 	intersection3f interx = intersection3f();
 
@@ -19,7 +19,7 @@ intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surfac
 	//	t = [(C - E) * n] / d * n
 
 	// compute ray intersection (and ray parameter), continue if not hit
-	if (ray.d.z == 0) {
+	if (dot(ray.d, surface.frame.z) == 0) {
 		interx.hit = false;
 		return interx;
 	}
@@ -34,27 +34,39 @@ intersection3f intersect_quad(const Scene &scene, const ray3f &ray, const Surfac
 		return interx;
 	}
 
-	auto p = ray.eval(t);
-	if (surface.frame.o.x + surface.radius < p.x or surface.frame.o.x - surface.radius > p.x
+	auto p = transform_point(surface.frame, ray.eval(t));
+	//auto p = ray.eval(t);
+	/*if (surface.frame.o.x + surface.radius < p.x or surface.frame.o.x - surface.radius > p.x
 		or surface.frame.o.y + surface.radius < p.y or surface.frame.o.y - surface.radius> p.y) {
 		interx.hit = false;
 		return interx;
-	}
+	}*/
 
+	if (abs(p.x) > surface.radius or abs(p.y) > surface.radius) {
+		interx.hit = false;
+		return interx;
+	}
+	
+	p = transform_point_inverse(surface.frame, p);
 	// if hit, set intersection record values
 	if (t < mindistance) {
+
+		auto pl = normalize(surface.frame.z);
+
 		interx.ray_t = t;
 		interx.hit = true;
 		interx.mat = surface.mat;
-		interx.norm = surface.frame.z;
+		interx.norm = pl;
+		//interx.norm = transform_normal(surface.frame, pl);
 		interx.pos = p;
+		//interx.pos = transform_point(scene.camera->frame, p);
 		mindistance = t;
 	}
-
+	
 	return interx;
 }
 
-intersection3f intersect_sphere(const Scene &scene, const ray3f &ray, const Surface &surface, float mindistance) {
+intersection3f intersect_sphere(const Scene &scene, ray3f &ray, const Surface &surface, float mindistance) {
 
 	intersection3f interx = intersection3f();
 
@@ -82,6 +94,7 @@ intersection3f intersect_sphere(const Scene &scene, const ray3f &ray, const Surf
 	}
 
 	// compute ray intersection (and ray parameter), continue if not hit
+	//auto p = transform_point(surface.frame, ray.eval(t));
 	auto p = ray.eval(t);
 	auto pl = normalize(p - surface.frame.o);
 
@@ -104,7 +117,7 @@ intersection3f intersect_surfaces(Scene* scene, ray3f ray) {
 	// create a default intersection record to be returned
     auto intersection = intersection3f();
 
-	ray = transform_ray(scene->camera->frame, ray);
+	//ray = transform_ray(scene->camera->frame, ray);
 
 	auto mindistance = INFINITY;
 
