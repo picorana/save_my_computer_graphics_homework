@@ -49,7 +49,7 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		vec3f S = light->frame.o;
 		vec3f P = intersection.pos;
 		vec3f l = normalize(S - P);
-		vec3f v = normalize(scene->camera->frame.o - P);
+		vec3f v = normalize(ray.e - P);
 		vec3f h = (l + v) / length(l + v);
 		vec3f light_color = light->intensity / distSqr(S , P);
 		vec3f light_direction = normalize((S - P)/abs(dist(S, P)));
@@ -66,8 +66,11 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 		vec3f cl = light_color * shadowfloat * (intersection.mat->kd + intersection.mat->ks * pow(max(0.0, dotres), intersection.mat->n)) * abs(dot(l, intersection.norm));
 
 		res += cl;
+
+		
 	}
 
+	
 	vec3f reflectionvector = zero3f;
 	if (not (intersection.mat->kr == zero3f)) {
 		ray3f reflectionray = ray3f(intersection.pos, ray.d - intersection.norm * 2 * dot(ray.d, intersection.norm));
@@ -75,6 +78,7 @@ vec3f raytrace_ray(Scene* scene, ray3f ray) {
 	}
 
 	res += reflectionvector;
+	
    
 	return res;
 }

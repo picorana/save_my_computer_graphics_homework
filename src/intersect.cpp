@@ -34,7 +34,7 @@ intersection3f intersect_quad(const Scene &scene, ray3f &ray, const Surface &sur
 		return interx;
 	}
 
-	auto p = transform_point(surface.frame, ray.eval(t));
+	auto p = transform_point_inverse(surface.frame, ray.eval(t));
 	//auto p = ray.eval(t);
 	/*if (surface.frame.o.x + surface.radius < p.x or surface.frame.o.x - surface.radius > p.x
 		or surface.frame.o.y + surface.radius < p.y or surface.frame.o.y - surface.radius> p.y) {
@@ -47,7 +47,7 @@ intersection3f intersect_quad(const Scene &scene, ray3f &ray, const Surface &sur
 		return interx;
 	}
 	
-	p = transform_point_inverse(surface.frame, p);
+	p = transform_point(surface.frame, p);
 	// if hit, set intersection record values
 	if (t < mindistance) {
 
