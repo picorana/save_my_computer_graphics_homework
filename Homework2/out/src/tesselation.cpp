@@ -136,6 +136,9 @@ void subdivide_bezier(Mesh* bezier) {
     // run smoothing to get proper tangents
     // copy back
     // clear
+	for (auto pos : bezier->pos) {
+		message("%f %f %f", pos);
+	}
 }
 
 Mesh* make_surface_mesh(frame3f frame, float radius, bool isquad, Material* mat, float offset) {

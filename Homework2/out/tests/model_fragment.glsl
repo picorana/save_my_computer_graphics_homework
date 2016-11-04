@@ -57,14 +57,15 @@ void main() {
         vec3 P = pos;
         vec3 l = normalize(S - P);
         vec3 light_color = light_intensity[i] / distSqr(S, P);
-        vec3 light_direction = normalize((S - P)/abs(dist(S, P)));
+        vec3 light_direction = (S - P)/abs(dist(S, P));
         vec3 v = normalize(camera_pos - P);
         vec3 h = (l + v) / length(l + v);
         float dotres = abs(dot(norm, h));
 
-        vec3 cl = light_color * (kd + ks * pow(max(0.0, dotres), material_n)) * abs(dot(l, mn));
+        vec3 cl = light_color * (kd + ks * pow(max(0.0, dotres), material_n)) * max(0, dot(l, mn));
         c = c + cl;
 	}
+    if (material_is_lines) c = vec3(0,0,0);
     // output final color by setting gl_FragColor
     gl_FragColor = vec4(c,1);
 }
