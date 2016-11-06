@@ -50,16 +50,28 @@ void facet_normals(Mesh* mesh) {
 // smooth out normal - does not duplicate data
 void smooth_normals(Mesh* mesh) {
     // PLACEHOLDER CODE - REMOVE AFTER FUNCTION IS IMPLEMENTED
-    mesh->norm.resize(mesh->pos.size());
+    //mesh->norm.resize(mesh->pos.size());
     // YOUR CODE GOES HERE ---------------------
     // set normals array to the same length as pos and init all elements to zero
+	auto norm = vector<vec3f>();
+	for (auto v : mesh->norm){
+		norm.push_back(vec3f(0, 0, 0));
+	}
     // foreach triangle
         // compute face normal
         // accumulate face normal to the vertex normals of each face index
     // foreach quad
+	for (auto q : mesh->quad){
+		auto fnormal = normalize(normalize(cross(mesh->pos[q.y] - mesh->pos[q.x], mesh->pos[q.z] - mesh->pos[q.x])) +
+			normalize(cross(mesh->pos[q.z] - mesh->pos[q.x], mesh->pos[q.w] - mesh->pos[q.x])));
+		for (auto vert : range(4)){
+			norm[vert] += fnormal;
+		}
+	}
         // compute face normal
         // accumulate face normal to the vertex normals of each face index
     // normalize all vertex normals
+	mesh->norm = norm;
 }
 
 // smooth out tangents
@@ -80,38 +92,76 @@ void smooth_tangents(Mesh* polyline) {
 // apply Catmull-Clark mesh subdivision
 // does not subdivide texcoord
 void subdivide_catmullclark(Mesh* subdiv) {
-    // YOUR CODE GOES HERE ---------------------
+	
+	// YOUR CODE GOES HERE ---------------------
     // skip is needed
     // allocate a working Mesh copied from the subdiv
+	auto tesselation = subdiv;
+	message("\n\ninit number of verts: %d", sizeof(subdiv->pos));
+
     // foreach level
-        // make empty pos and quad arrays
-        // create edge_map from current mesh
-        // linear subdivision - create vertices
-        // copy all vertices from the current mesh
-        // add vertices in the middle of each edge (use EdgeMap)
-        // add vertices in the middle of each triangle
-        // add vertices in the middle of each quad
-        // subdivision pass --------------------------------
-        // compute an offset for the edge vertices
-        // compute an offset for the triangle vertices
-        // compute an offset for the quad vertices
-        // foreach triangle
-            // add three quads to the new quad array
-        // foreach quad
-            // add four quads to the new quad array
-        // averaging pass ----------------------------------
-        // create arrays to compute pos averages (avg_pos, avg_count)
-        // arrays have the same length as the new pos array, and are init to zero
-        // for each new quad
-            // compute quad center using the new pos array
-            // foreach vertex index in the quad
-        // normalize avg_pos with its count avg_count
-        // correction pass ----------------------------------
-        // foreach pos, compute correction p = p + (avg_p - p) * (4/avg_count)
-        // set new arrays pos, quad back into the working mesh; clear triangle array
+	for (int i = 0; i < subdiv->subdivision_catmullclark_level; i++){
+		// make empty pos and quad arrays
+		auto pos = vector<vec3f>();
+		auto quad = vector<vec3f>();
+		// create edge_map from current mesh
+		auto edge_map = EdgeMap(vector<vec3i>(), tesselation->quad);
+		// linear subdivision - create vertices
+		// copy all vertices from the current mesh
+		for (auto vert : tesselation->pos){
+			pos.push_back(vert);
+		}
+		// add vertices in the middle of each edge (use EdgeMap)
+		for (auto edge : edge_map._edge_list){
+			pos.push_back(tesselation->pos[edge.x] * 0.5 + tesselation->pos[edge.y] * 0.5);
+			//WHAT IS HAPPENING HERE
+		}
+		// add vertices in the middle of each triangle
+		// add vertices in the middle of each quad
+		for (auto vert : tesselation->quad){
+			pos.push_back(tesselation->pos[vert.x] * 0.25 + tesselation->pos[vert.y] * 0.25 + 
+				tesselation->pos[vert.z] * 0.25 + tesselation->pos[vert.w] * 0.25);
+		}
+		// subdivision pass --------------------------------
+		// compute an offset for the edge vertices
+		// compute an offset for the triangle vertices
+		// compute an offset for the quad vertices
+		// foreach triangle
+		// add three quads to the new quad array
+		// foreach quad
+		// add four quads to the new quad array
+		// averaging pass ----------------------------------
+		// create arrays to compute pos averages (avg_pos, avg_count)
+		// arrays have the same length as the new pos array, and are init to zero
+		// for each new quad
+		// compute quad center using the new pos array
+		// foreach vertex index in the quad
+		// normalize avg_pos with its count avg_count
+		// correction pass ----------------------------------
+		// foreach pos, compute correction p = p + (avg_p - p) * (4/avg_count)
+		// set new arrays pos, quad back into the working mesh; clear triangle array
+		int count = 0;
+		for (auto p : pos){
+			count++;
+		}
+		message("\npos size: %d", count);
+
+		tesselation->pos = pos;
+		int count2 = 0;
+		for (auto p : tesselation->pos){
+			count2++;
+		}
+		message("\ntesselation->pos size: %d", count2);
+	}
+        
     // clear subdivision
     // according to smooth, either smooth_normals or facet_normals
+	//if (subdiv->subdivision_catmullclark_smooth) smooth_normals(subdiv);
+	//else facet_normals(subdiv);
     // copy back
+	subdiv = tesselation;
+	
+
     // clear
 }
 
