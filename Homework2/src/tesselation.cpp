@@ -62,15 +62,17 @@ void smooth_normals(Mesh* mesh) {
         // accumulate face normal to the vertex normals of each face index
     // foreach quad
 	for (auto q : mesh->quad){
-		auto fnormal = normalize(normalize(cross(mesh->pos[q.y] - mesh->pos[q.x], mesh->pos[q.z] - mesh->pos[q.x])) +
-			normalize(cross(mesh->pos[q.z] - mesh->pos[q.x], mesh->pos[q.w] - mesh->pos[q.x])));
-		for (auto vert : range(4)){
-			norm[vert] += fnormal;
+		mesh->norm.resize(mesh->pos.size());
+		// compute face normal
+		for (auto vid : q){
+			mesh->norm[vid] += quad_normal(mesh->pos[f.x], mesh->pos[f.y], mesh->pos[f.z], mesh->pos[f.w]);
 		}
+		// accumulate face normal to the vertex normals of each face index
 	}
-        // compute face normal
-        // accumulate face normal to the vertex normals of each face index
     // normalize all vertex normals
+	for (int i = 0; i < norm.size(); i++){
+		norm[i] = normalize(norm[i]);
+	}
 	mesh->norm = norm;
 }
 
@@ -103,7 +105,7 @@ void subdivide_catmullclark(Mesh* subdiv) {
 	for (int i = 0; i < subdiv->subdivision_catmullclark_level; i++){
 		// make empty pos and quad arrays
 		auto pos = vector<vec3f>();
-		auto quad = vector<vec3f>();
+		auto quad = vector<vec4i>();
 		// create edge_map from current mesh
 		auto edge_map = EdgeMap(vector<vec3i>(), tesselation->quad);
 		// linear subdivision - create vertices
@@ -111,6 +113,8 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		for (auto vert : tesselation->pos){
 			pos.push_back(vert);
 		}
+
+		int evo = pos.size();
 		// add vertices in the middle of each edge (use EdgeMap)
 		for (auto edge : edge_map._edge_list){
 			pos.push_back(tesselation->pos[edge.x] * 0.5 + tesselation->pos[edge.y] * 0.5);
@@ -118,6 +122,7 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		}
 		// add vertices in the middle of each triangle
 		// add vertices in the middle of each quad
+		int fvo = pos.size();
 		for (auto vert : tesselation->quad){
 			pos.push_back(tesselation->pos[vert.x] * 0.25 + tesselation->pos[vert.y] * 0.25 + 
 				tesselation->pos[vert.z] * 0.25 + tesselation->pos[vert.w] * 0.25);
@@ -129,35 +134,66 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		// foreach triangle
 		// add three quads to the new quad array
 		// foreach quad
+		/*for (auto q : tesselation->quad){
+			quad.push_back(q);
+		}*/
+		
+		for (int fid = 0; fid < tesselation->quad.size(); fid++) {
+			auto f = tesselation->quad[fid];
+			auto ve = vec4i(edge_map.edge_index(vec2i(f.x, f.y)),
+				edge_map.edge_index(vec2i(f.y, f.z)),
+				edge_map.edge_index(vec2i(f.z, f.w)),
+				edge_map.edge_index(vec2i(f.w, f.x))) + vec4i(evo, evo, evo, evo);
+			auto vf = fid + fvo;
+			quad.push_back(vec4i(f.x, ve.x, vf, ve.w));
+			quad.push_back(vec4i(f.y, ve.y, vf, ve.x));
+			quad.push_back(vec4i(f.z, ve.z, vf, ve.y));
+			quad.push_back(vec4i(f.w, ve.w, vf, ve.z));
+		}
+
 		// add four quads to the new quad array
 		// averaging pass ----------------------------------
 		// create arrays to compute pos averages (avg_pos, avg_count)
+		auto avg_pos = vector<vec3f>();
+		auto avg_count = vector<int>();
 		// arrays have the same length as the new pos array, and are init to zero
+		for (auto v : pos){
+			avg_pos.push_back(vec3f(0, 0, 0));
+			avg_count.push_back(0);
+		}
+
+		auto npos = vector<vec3f>(pos.size(), zero3f);
+		auto count = vector<int>(pos.size(), 0);
+		for (int i = 0; i < quad.size(); i++) {
+			auto f = quad[i];
+			for (int j = 0; j < 4; j++){
+				auto vid = f[j];
+				npos[vid] += (pos[f.x] + pos[f.y] + pos[f.z] + pos[f.w]) / 4;
+				count[vid] ++;
+			}
+		}
 		// for each new quad
 		// compute quad center using the new pos array
 		// foreach vertex index in the quad
 		// normalize avg_pos with its count avg_count
+		for (auto i : range(pos.size())) {
+			npos[i] /= count[i];
+		}
 		// correction pass ----------------------------------
 		// foreach pos, compute correction p = p + (avg_p - p) * (4/avg_count)
+		for (auto i : range(pos.size())) {
+			npos[i] = pos[i] + (npos[i] - pos[i])*(4.0 / count[i]);
+		}
 		// set new arrays pos, quad back into the working mesh; clear triangle array
-		int count = 0;
-		for (auto p : pos){
-			count++;
-		}
-		message("\npos size: %d", count);
 
-		tesselation->pos = pos;
-		int count2 = 0;
-		for (auto p : tesselation->pos){
-			count2++;
-		}
-		message("\ntesselation->pos size: %d", count2);
+		tesselation->pos = npos;
+		tesselation->quad = quad;
 	}
         
     // clear subdivision
     // according to smooth, either smooth_normals or facet_normals
-	//if (subdiv->subdivision_catmullclark_smooth) smooth_normals(subdiv);
-	//else facet_normals(subdiv);
+	if (subdiv->subdivision_catmullclark_smooth) smooth_normals(subdiv);
+	//facet_normals(subdiv);
     // copy back
 	subdiv = tesselation;
 	
