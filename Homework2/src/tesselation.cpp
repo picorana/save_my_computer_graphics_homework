@@ -20,7 +20,7 @@ void facet_normals(Mesh* mesh) {
         for(auto i : range(3)) {
             pos.push_back(mesh->pos[f[i]]);
             norm.push_back(fn);
-            if(not mesh->texcoord.empty()) texcoord.push_back(mesh->texcoord[f[i]]);
+            if(!mesh->texcoord.empty()) texcoord.push_back(mesh->texcoord[f[i]]);
         }
     }
     // froeach quad
@@ -36,7 +36,7 @@ void facet_normals(Mesh* mesh) {
         for(auto i : range(4)) {
             pos.push_back(mesh->pos[f[i]]);
             norm.push_back(fn);
-            if(not mesh->texcoord.empty()) texcoord.push_back(mesh->texcoord[f[i]]);
+            if(!mesh->texcoord.empty()) texcoord.push_back(mesh->texcoord[f[i]]);
         }
     }
     // set back mesh data
@@ -119,43 +119,51 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		auto pos = vector<vec3f>();
 		auto quad = vector<vec4i>();
 		// create edge_map from current mesh
-		auto edge_map = EdgeMap(vector<vec3i>(), tesselation->quad);
+		auto edge_map = EdgeMap(tesselation->triangle, tesselation->quad);
+
 		// linear subdivision - create vertices
 		// copy all vertices from the current mesh
 		for (auto vert : tesselation->pos){
 			pos.push_back(vert);
 		}
 
-		int evo = pos.size();
 		// add vertices in the middle of each edge (use EdgeMap)
 		for (auto edge : edge_map._edge_list){
 			pos.push_back(tesselation->pos[edge.x] * 0.5 + tesselation->pos[edge.y] * 0.5);
-			//WHAT IS HAPPENING HERE
 		}
 		// add vertices in the middle of each triangle
+		for (auto triangle : tesselation->triangle){
+			auto centroid = pos[triangle.x] * 0.33 + pos[triangle.y] * 0.33 + pos[triangle.z] * 0.33;
+			pos.push_back(centroid);
+		}
 		// add vertices in the middle of each quad
 		int fvo = pos.size();
 		for (auto vert : tesselation->quad){
 			pos.push_back(tesselation->pos[vert.x] * 0.25 + tesselation->pos[vert.y] * 0.25 + 
 				tesselation->pos[vert.z] * 0.25 + tesselation->pos[vert.w] * 0.25);
 		}
+
 		// subdivision pass --------------------------------
 		// compute an offset for the edge vertices
+		int edge_offset = tesselation->pos.size();
 		// compute an offset for the triangle vertices
+		int triangle_offset = tesselation->pos.size() + tesselation->triangle.size();
 		// compute an offset for the quad vertices
-		// foreach triangle
-		// add three quads to the new quad array
-		// foreach quad
-		/*for (auto q : tesselation->quad){
-			quad.push_back(q);
-		}*/
+		int quad_offset = tesselation->pos.size() + tesselation->triangle.size() + tesselation->quad.size();
 		
+		// foreach triangle
+		for (auto triangle : tesselation->triangle){
+			// add three quads to the new quad array
+
+		}
+		
+		// foreach quad
 		for (int fid = 0; fid < tesselation->quad.size(); fid++) {
 			auto f = tesselation->quad[fid];
 			auto ve = vec4i(edge_map.edge_index(vec2i(f.x, f.y)),
 				edge_map.edge_index(vec2i(f.y, f.z)),
 				edge_map.edge_index(vec2i(f.z, f.w)),
-				edge_map.edge_index(vec2i(f.w, f.x))) + vec4i(evo, evo, evo, evo);
+				edge_map.edge_index(vec2i(f.w, f.x))) + vec4i(edge_offset, edge_offset, edge_offset, edge_offset);
 			auto vf = fid + fvo;
 			quad.push_back(vec4i(f.x, ve.x, vf, ve.w));
 			quad.push_back(vec4i(f.y, ve.y, vf, ve.x));
@@ -219,7 +227,6 @@ void subdivide_bezier(Mesh* bezier) {
     // skip is needed
     // allocate a working polyline from bezier
 	auto polyline = bezier;
-	message("\nnumber of splines in initial mesh: %d", bezier->spline.size());
     // foreach level
 	for (auto i : range(polyline->subdivision_bezier_level)){
         // make new arrays of positions and bezier segments
@@ -272,13 +279,10 @@ void subdivide_bezier(Mesh* bezier) {
 		polyline->spline = segments;
 	}
     // copy bezier segments into line segments
-	int count = 0;
 	for (auto line : polyline->spline){
 		polyline->line.push_back(vec2i(line.x, line.y));
 		polyline->line.push_back(vec2i(line.z, line.w));
-		count++;
 	}
-	message("\nnumber of splines in polyline: %d", count);
     // clear bezier array from lines
     // run smoothing to get proper tangents
     // copy back
