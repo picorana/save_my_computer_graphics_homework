@@ -218,21 +218,71 @@ void subdivide_bezier(Mesh* bezier) {
     // YOUR CODE GOES HERE ---------------------
     // skip is needed
     // allocate a working polyline from bezier
+	auto polyline = bezier;
+	message("\nnumber of splines in initial mesh: %d", bezier->spline.size());
     // foreach level
+	for (auto i : range(polyline->subdivision_bezier_level)){
         // make new arrays of positions and bezier segments
+		auto pos = vector<vec3f>();
+		auto segments = vector<vec4i>();
+
         // copy all the vertices into the new array (this waste space but it is easier for now)
+		for (auto p : polyline->pos) { 
+			pos.push_back(p); 
+		}
+
         // foreach bezier segment
-            // apply subdivision algorithm
-            // prepare indices for two new segments
-            // add mid point
-            // add points for first segment and fix segment indices
-            // add points for second segment and fix segment indices
-            // add indices for both segments into new segments array
+		for (auto line : polyline->spline){
+			// apply subdivision algorithm
+			// prepare indices for two new segments
+			// 1 : {P0, Q0, R0, S}
+			// 2 : {S, R1, Q2, P3}
+			//Qi = (Pi + Pi+1)/2
+			//Ri = (Qi + Qi+1)/2
+			//S  = (Ri + Ri+1)/2
+			auto offset = pos.size();
+			auto P0 = pos[line.x];
+			auto P1 = pos[line.y];
+			auto P2 = pos[line.z];
+			auto P3 = pos[line.w];
+
+			// add mid point
+			auto Q0 = (P0 + P1) / 2;
+			auto Q1 = (P1 + P2) / 2;
+			auto Q2 = (P2 + P3) / 2;
+
+			auto R0 = (Q0 + Q1) / 2;
+			auto R1 = (Q1 + Q2) / 2;
+
+			auto S = (R0 + R1) / 2;
+			// add points for first segment and fix segment indices
+			pos.push_back(Q0);
+			pos.push_back(R0);
+			pos.push_back(S);
+			// add points for second segment and fix segment indices
+			pos.push_back(R1);
+			pos.push_back(Q2);
+			// add indices for both segments into new segments array
+			segments.push_back(vec4i(line.x, offset, offset+1, offset+2));
+			segments.push_back(vec4i(offset + 2, offset+3, offset+4, line.w));
+		}
+
         // set new arrays pos, segments into the working lineset
+		polyline->pos = pos;
+		polyline->spline = segments;
+	}
     // copy bezier segments into line segments
+	int count = 0;
+	for (auto line : polyline->spline){
+		polyline->line.push_back(vec2i(line.x, line.y));
+		polyline->line.push_back(vec2i(line.z, line.w));
+		count++;
+	}
+	message("\nnumber of splines in polyline: %d", count);
     // clear bezier array from lines
     // run smoothing to get proper tangents
     // copy back
+	bezier = polyline;
     // clear
 }
 
