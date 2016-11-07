@@ -49,30 +49,42 @@ void facet_normals(Mesh* mesh) {
 
 // smooth out normal - does not duplicate data
 void smooth_normals(Mesh* mesh) {
-    // PLACEHOLDER CODE - REMOVE AFTER FUNCTION IS IMPLEMENTED
-    //mesh->norm.resize(mesh->pos.size());
-    // YOUR CODE GOES HERE ---------------------
+
     // set normals array to the same length as pos and init all elements to zero
-	auto norm = vector<vec3f>();
-	for (auto v : mesh->norm){
+	auto norm = vector<vec3f>(mesh->pos.size());
+	for (auto v : norm){
 		norm.push_back(vec3f(0, 0, 0));
 	}
+
     // foreach triangle
-        // compute face normal
-        // accumulate face normal to the vertex normals of each face index
-    // foreach quad
-	for (auto q : mesh->quad){
-		mesh->norm.resize(mesh->pos.size());
+	for (auto f : mesh->triangle){
 		// compute face normal
-		for (auto vid : q){
-			mesh->norm[vid] += quad_normal(mesh->pos[f.x], mesh->pos[f.y], mesh->pos[f.z], mesh->pos[f.w]);
-		}
+		auto a = normalize(cross(mesh->pos[f.y] - mesh->pos[f.x], mesh->pos[f.z] - mesh->pos[f.x]));
 		// accumulate face normal to the vertex normals of each face index
+		for (auto i : range(3)) {
+			norm[f[i]] += a;
+		}
 	}
+        
+	// foreach quad
+	for (auto f : mesh->quad){
+		
+		// compute face normal
+		auto a = normalize(cross(mesh->pos[f.y] - mesh->pos[f.x], mesh->pos[f.z] - mesh->pos[f.x]));
+		auto b = normalize(cross(mesh->pos[f.z] - mesh->pos[f.x], mesh->pos[f.w] - mesh->pos[f.x]));
+		auto c = normalize(a + b);
+		
+		// accumulate face normal to the vertex normals of each face index
+		for (auto i : range(4)) {
+			norm[f[i]] += c;
+		}
+	}
+
     // normalize all vertex normals
 	for (int i = 0; i < norm.size(); i++){
 		norm[i] = normalize(norm[i]);
 	}
+
 	mesh->norm = norm;
 }
 
@@ -193,7 +205,7 @@ void subdivide_catmullclark(Mesh* subdiv) {
     // clear subdivision
     // according to smooth, either smooth_normals or facet_normals
 	if (subdiv->subdivision_catmullclark_smooth) smooth_normals(subdiv);
-	//facet_normals(subdiv);
+	else facet_normals(subdiv);
     // copy back
 	subdiv = tesselation;
 	
