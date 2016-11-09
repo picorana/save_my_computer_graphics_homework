@@ -28,8 +28,8 @@ struct EdgeMap {
     
     // get an edge from two vertices
     int edge_index(vec2i e) const {
-		if (!(_edge_map.find(make_pair(e.x, e.y)) == _edge_map.end())) return -1;
-        //error_if_not(not (_edge_map.find(make_pair(e.x,e.y)) == _edge_map.end()), "no");
+		//if (!(_edge_map.find(make_pair(e.x, e.y)) == _edge_map.end())) return -1;
+        error_if_not(not (_edge_map.find(make_pair(e.x,e.y)) == _edge_map.end()), "no");
         return _edge_map.find(make_pair(e.x, e.y))->second;
     }
 };
