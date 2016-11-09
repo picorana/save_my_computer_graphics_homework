@@ -120,20 +120,30 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		auto quad = vector<vec4i>();
 		// create edge_map from current mesh
 		auto edge_map = EdgeMap(tesselation->triangle, tesselation->quad);
+		auto hash = EdgeMap(vector<vec3i>(), quad);
 
 		// linear subdivision - create vertices
 		// copy all vertices from the current mesh
 		for (auto vert : tesselation->pos){
 			pos.push_back(vert);
 		}
-
+		
 		// add vertices in the middle of each edge (use EdgeMap)
-		for (auto edge : edge_map._edge_list){
-			pos.push_back(tesselation->pos[edge.x] * 0.5 + tesselation->pos[edge.y] * 0.5);
+		int prevpos = pos.size();
+		for (int j = 0; j < edge_map._edge_map.size(); j++){
+			auto edge = edge_map._edge_list[j];
+			if (hash.edge_index(vec2i(edge.x, edge.y)) != -1) {
+				hash._add_edge(edge.x, edge.y);
+				pos.push_back(tesselation->pos[edge.x] * 0.5 + tesselation->pos[edge.y] * 0.5);
+				//hash._add_edge(edge.x, prevpos + j);
+				//hash._add_edge(prevpos + j, edge.y);
+			}
 		}
+
 		// add vertices in the middle of each triangle
+		int triangleindex = 0;
 		for (auto triangle : tesselation->triangle){
-			auto centroid = pos[triangle.x] * 0.33 + pos[triangle.y] * 0.33 + pos[triangle.z] * 0.33;
+			auto centroid = (pos[triangle.x] + pos[triangle.y] + pos[triangle.z]) / 3;
 			pos.push_back(centroid);
 		}
 		// add vertices in the middle of each quad
@@ -147,14 +157,38 @@ void subdivide_catmullclark(Mesh* subdiv) {
 		// compute an offset for the edge vertices
 		int edge_offset = tesselation->pos.size();
 		// compute an offset for the triangle vertices
-		int triangle_offset = tesselation->pos.size() + tesselation->triangle.size();
+		int triangle_offset = tesselation->pos.size();
 		// compute an offset for the quad vertices
 		int quad_offset = tesselation->pos.size() + tesselation->triangle.size() + tesselation->quad.size();
 		
 		// foreach triangle
-		for (auto triangle : tesselation->triangle){
-			// add three quads to the new quad array
+		for (int j = 0; j < tesselation->triangle.size(); j++){
+			auto t = tesselation->triangle[j];
+			message("\ntriangle %d:\ncentroid: %d coords: %f %f %f\nvert0: %d coords: %f %f %f\nvert1: %d coords: %f %f %f\nvert2: %d coords: %f %f %f",
+				j, triangle_offset + j, pos[triangle_offset+j].x, pos[triangle_offset+j].y, pos[triangle_offset+j].z, 
+				t[0], pos[t[0]].x, pos[t[0]].y, pos[t[0]].z,
+				t[1], pos[t[1]].x, pos[t[1]].y, pos[t[1]].z,
+				t[2], pos[t[2]].x, pos[t[2]].y, pos[t[2]].z);
+			quad.push_back(
+				vec4i(t[0],
+				edge_offset + edge_map.edge_index(vec2i(t[0], t[1])),
+				triangle_offset + j,
+				edge_offset + edge_map.edge_index(vec2i(t[0], t[2])))
+				);
 
+			quad.push_back(
+				vec4i(t[1],
+				edge_offset + edge_map.edge_index(vec2i(t[1], t[2])),
+				triangle_offset + j,
+				edge_offset + edge_map.edge_index(vec2i(t[1], t[0])))
+				);
+
+			quad.push_back(
+				vec4i(t[2],
+				edge_offset + edge_map.edge_index(vec2i(t[2], t[0])),
+				triangle_offset + j,
+				edge_offset + edge_map.edge_index(vec2i(t[2], t[1])))
+				);
 		}
 		
 		// foreach quad
