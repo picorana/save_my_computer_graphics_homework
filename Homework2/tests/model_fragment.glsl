@@ -31,6 +31,37 @@ float dist(vec3 a, vec3 b) { return length(a-b); }
 float distSqr(vec3 a, vec3 b) { return lengthSqr(a-b); }
 
 // main
+void main2() {
+    // re-normalize normals
+    vec3 n = normalize(norm);
+    // lookup normal map if needed
+    if(material_norm_txt_on) n = normalize(2*texture2D(material_norm_txt,texcoord).xyz-vec3(1));
+    // compute material values by looking up textures is necessary
+    vec3 kd = material_kd * ( (material_kd_txt_on)?texture2D(material_kd_txt,texcoord).xyz:vec3(1) );
+    vec3 ks = material_ks * ( (material_ks_txt_on)?texture2D(material_ks_txt,texcoord).xyz:vec3(1) );
+    // accumulate ambient
+    vec3 c = ambient * kd;
+    // foreach light
+    for(int i = 0; i < lights_num; i ++) {
+        // compute point light color at pos
+        vec3 cl = light_intensity[i] / pow(length(light_pos[i]-pos),2);
+        // compute light direction at pos
+        vec3 l = normalize(light_pos[i]-pos);
+        // compute view direction using camera_pos and pos
+        vec3 v = normalize(camera_pos-pos);
+        // compute h
+        vec3 h = normalize(v+l);
+        // accumulate blinn-phong model
+        if(material_is_lines) {
+            c += cl * kd * sqrt(1-dot(l,n)*dot(l,n));
+        } else {
+            c += cl * max(0,dot(l,n)) * (kd + ks * pow(max(0,dot(h,n)),material_n));
+        }
+    }
+    // output final color by setting gl_FragColor
+    gl_FragColor = vec4(c,1);
+}
+
 void main() {
     // re-normalize normals
     vec3 n = normalize(norm);
@@ -41,31 +72,28 @@ void main() {
     // accumulate ambient
     vec3 kd = material_kd;
     vec3 ks = material_ks;
-    vec3 mn = norm;
     if (material_kd_txt_on) kd = material_kd * texture2D(material_kd_txt, texcoord).rgb;
     if (material_ks_txt_on) ks = material_ks * texture2D(material_ks_txt, texcoord).rgb;
-    if (material_norm_txt_on) mn = normalize(texture2D(material_norm_txt, texcoord).rgb*2 - 1);
-	c = c + ambient*kd;
+    if (material_norm_txt_on) n = normalize(texture2D(material_norm_txt, texcoord).rgb*2 - 1);
+    c = ambient*kd;
     // foreach light
-	for (int i=0; i<lights_num; i++){
-        // compute point light color at pos
-        // compute light direction at pos
-        // compute view direction using camera_pos and pos
-        // compute h
-        // accumulate blinn-phong model
+    for (int i=0; i<lights_num; i++){
         vec3 S = light_pos[i];
         vec3 P = pos;
         vec3 l = normalize(S - P);
-        vec3 light_color = light_intensity[i] / distSqr(S, P);
+        vec3 light_color = light_intensity[i] / pow(length(S-P),2);
         vec3 light_direction = (S - P)/abs(dist(S, P));
         vec3 v = normalize(camera_pos - P);
-        vec3 h = (l + v) / length(l + v);
-        float dotres = abs(dot(norm, h));
-
-        vec3 cl = light_color * (kd + ks * pow(max(0.0, dotres), material_n)) * max(0, dot(l, mn));
+        vec3 h = normalize(l + v);
+        float dotres = abs(dot(n, h));
+        vec3 cl;
+        if (material_is_lines){
+            cl = cl * kd * sqrt(1-dot(l,n)*dot(l,n));
+        } else {
+            cl = light_color * (kd + ks * pow(max(0.0, dotres), material_n)) * max(0, dot(l, n));
+        }
         c = c + cl;
-	}
-    if (material_is_lines) c = vec3(0,0,0);
+    }
     // output final color by setting gl_FragColor
     gl_FragColor = vec4(c,1);
 }
