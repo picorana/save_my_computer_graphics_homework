@@ -75,6 +75,7 @@ void main() {
     if (material_kd_txt_on) kd = material_kd * texture2D(material_kd_txt, texcoord).rgb;
     if (material_ks_txt_on) ks = material_ks * texture2D(material_ks_txt, texcoord).rgb;
     if (material_norm_txt_on) n = normalize(texture2D(material_norm_txt, texcoord).rgb*2 - 1);
+    n = faceforward(n, normalize(pos-camera_pos), n);
     c = ambient*kd;
     // foreach light
     for (int i=0; i<lights_num; i++){
