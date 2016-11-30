@@ -1,5 +1,3 @@
-..\bin\Release\animate.exe 06_particles_simulated01.json
-
 ..\bin\Release\animate.exe 07_particles_simulated02.json
 
 ..\bin\Release\animate.exe 08_particles_simulated03.json
