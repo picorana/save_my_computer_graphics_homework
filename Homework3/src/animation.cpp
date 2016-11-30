@@ -80,18 +80,39 @@ void animate_skin(Scene* scene) {
 void simulate(Scene* scene) {
     // YOUR CODE GOES HERE ---------------------
     // for each mesh
+	for (auto mesh : scene->meshes){
         // skip if no simulation
+		if (mesh->simulation == nullptr) continue;
         // compute time per step
+		auto dt = scene->animation->dt;
         // foreach simulation steps
+		for (int i = 0; i < scene->animation->simsteps; i++){
             // compute extenal forces (gravity)
+			//mesh->simulation->force.push_back(scene->animation->gravity * mesh->simulation->mass[0]);
+			/*for (int j = 0; j < mesh->pos.size(); j++){
+				auto gravity_force = scene->animation->gravity * mesh->simulation->mass[j];
+				mesh->pos[j] += gravity_force;
+			}*/
+			for (int j = 0; j < mesh->pos.size(); j++){
+				mesh->simulation->force[j] += scene->animation->gravity * mesh->simulation->mass[j];
+			}
+			
             // for each spring, compute spring force on points
-                // compute spring distance and length
-                // compute static force
-                // accumulate static force on points
-                // compute dynamic force
-                // accumulate dynamic force on points
+			for (auto spring : mesh->simulation->springs){
+				// compute spring distance and length
+				auto spring_length = length(mesh->pos[spring.ids.y] - mesh->pos[spring.ids.x]);
+				auto spring_direction = normalize(mesh->pos[spring.ids.y] - mesh->pos[spring.ids.x]);
+				auto rest_length = spring.restlength;
+				// compute static force
+				auto static_force_on_pi = spring.ks * (spring_length - rest_length) * spring_direction;
+				// accumulate static force on points
+				// compute dynamic force
+				// accumulate dynamic force on points
+			}
             // newton laws
+			for (int j = 0; j < mesh->pos.size(); j++){
                 // if pinned, skip
+				if (mesh->simulation->pinned[j]) continue;
                 // acceleration
                 // update velocity and positions using Euler's method
                 // for each mesh, check for collision
@@ -106,7 +127,10 @@ void simulate(Scene* scene) {
                     // if inside
                         // set particle position
                         // update velocity
+				}
         // smooth normals if it has triangles or quads
+		}
+	}
 }
 
 // scene reset
@@ -135,6 +159,6 @@ void animate_update(Scene* scene) {
         else return;
     } else scene->animation->time ++;
     animate_frame(scene);
-    if(not scene->animation->gpu_skinning) animate_skin(scene);
+    if(!scene->animation->gpu_skinning) animate_skin(scene);
     simulate(scene);
 }
