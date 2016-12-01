@@ -108,7 +108,7 @@ void simulate(Scene* scene) {
 				mesh->simulation->force[spring.ids.x] += static_force_on_pi;
 				mesh->simulation->force[spring.ids.y] += - static_force_on_pi;
 				// compute dynamic force
-				auto dynamic_force = spring.kd * (spring_relative_vel * spring_direction) * spring_direction;
+				auto dynamic_force = spring.kd * dot(spring_relative_vel, spring_direction) * spring_direction;
 				// accumulate dynamic force on points
 				mesh->simulation->force[spring.ids.x] += dynamic_force;
 				mesh->simulation->force[spring.ids.y] += - dynamic_force;
@@ -134,8 +134,8 @@ void simulate(Scene* scene) {
                         // perform inside test
 						if (pl.z < 0 && -r < pl.x && pl.x < r && -r < pl.y && pl.y < r){
 							mesh->pos[j] = transform_point(surf->frame, vec3f(pl.x, pl.y, 0));
-							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - surf->frame.z * mesh->simulation->vel[j] * surf->frame.z)*(1 - scene->animation->bounce_dump[0]) +
-								(-(surf->frame.z * mesh->simulation->vel[j])*surf->frame.z)*(1 - scene->animation->bounce_dump[1]);
+							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - dot(surf->frame.z, mesh->simulation->vel[j]) * surf->frame.z)*(1 - scene->animation->bounce_dump[0]) +
+								(- dot(surf->frame.z, mesh->simulation->vel[j])*surf->frame.z)*(1 - scene->animation->bounce_dump[1]);
 						}
                             // if inside, set position and normal
 					}
@@ -146,8 +146,8 @@ void simulate(Scene* scene) {
 						if (length(mesh->pos[j] - sphere_center) < sphere_radius){
 							mesh->pos[j] = sphere_radius * normalize(mesh->pos[j] - sphere_center) + sphere_center;
 							auto sphere_norm = normalize(mesh->pos[j] - sphere_center);
-							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - sphere_norm * mesh->simulation->vel[j] * sphere_norm)*(1 - scene->animation->bounce_dump[0]) +
-								(-(sphere_norm * mesh->simulation->vel[j])*sphere_norm)*(1 - scene->animation->bounce_dump[1]);
+							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - dot(sphere_norm, mesh->simulation->vel[j]) * sphere_norm)*(1 - scene->animation->bounce_dump[0]) +
+								(-dot(sphere_norm, mesh->simulation->vel[j])*sphere_norm)*(1 - scene->animation->bounce_dump[1]);
 						}
 
 					}
