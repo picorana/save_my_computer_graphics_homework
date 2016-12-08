@@ -103,12 +103,12 @@ void simulate(Scene* scene) {
 				auto rest_length = spring.restlength;
 				auto spring_relative_vel = mesh->simulation->vel[spring.ids.y] - mesh->simulation->vel[spring.ids.x];
 				// compute static force
-				auto static_force_on_pi = spring.ks * (spring_length - rest_length) * spring_direction;
+				auto static_force_on_pi = spring_direction * (spring_length - rest_length) * spring.ks;
 				// accumulate static force on points
 				mesh->simulation->force[spring.ids.x] += static_force_on_pi;
 				mesh->simulation->force[spring.ids.y] += - static_force_on_pi;
 				// compute dynamic force
-				auto dynamic_force = spring.kd * dot(spring_relative_vel, spring_direction) * spring_direction;
+				auto dynamic_force = spring.kd * spring_direction * dot(spring_relative_vel, spring_direction);
 				// accumulate dynamic force on points
 				mesh->simulation->force[spring.ids.x] += dynamic_force;
 				mesh->simulation->force[spring.ids.y] += - dynamic_force;
@@ -121,8 +121,8 @@ void simulate(Scene* scene) {
                 // acceleration
 				auto acceleration = mesh->simulation->force[j] / mesh->simulation->mass[j];
                 // update velocity and positions using Euler's method
-				mesh->simulation->vel[j] += acceleration * timenow;
 				mesh->pos[j] += mesh->simulation->vel[j] * timenow + acceleration * timenow * timenow / 2;
+				mesh->simulation->vel[j] += acceleration * timenow;
                 // for each mesh, check for collision
 				for (auto surf : scene->surfaces){
 					// compute inside tests
