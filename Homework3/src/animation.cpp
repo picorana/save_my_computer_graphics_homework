@@ -24,20 +24,25 @@ void animate_frame(Scene* scene) {
     // YOUR CODE GOES HERE ---------------------
     // foreach mesh
 	for (auto mesh : scene->meshes){
+		// if not animation, continue
 		if (mesh->animation==nullptr) continue;
+		// update frame
 		mesh->frame = animate_compute_frame(mesh->animation, scene->animation->time);
 	}
-        // if not animation, continue
-        // update frame
+        
+        
     // foreach surface
 	for (auto surface : scene->surfaces){
+		// if not animation, continue
 		if (surface->animation==nullptr) continue;
+		// update frame
 		surface->frame = animate_compute_frame(surface->animation, scene->animation->time);
+		// update the _display_mesh
 		surface->_display_mesh = make_surface_mesh(surface->frame, surface->radius, surface->isquad, surface->mat);
 	}
-        // if not animation, continue
-        // update frame
-        // update the _display_mesh
+        
+        
+        
 }
 
 // skinning scene
@@ -45,35 +50,32 @@ void animate_skin(Scene* scene) {
     // YOUR CODE GOES HERE ---------------------
     // foreach mesh
 	for (auto mesh : scene->meshes){
+		// if no skinning, continue
 		if (mesh->skinning == nullptr) continue;
+		// foreach vertex index
 		for (int i = 0; i < mesh->pos.size(); i++){
+			// set pos/norm to zero
 			mesh->pos[i] = zero3f;
 			mesh->norm[i] = zero3f;
+			// for each bone slot (0..3)
 			for (int j = 0; j < 4; j++){
+				// get bone weight and index
 				auto w = mesh->skinning->bone_weights[i][j];
+				// if index < 0, continue
 				auto index = mesh->skinning->bone_ids[i][j];
 				if (index < 0) continue;
 				auto xform = mat4f();
+				// grab bone xform
 				xform = mesh->skinning->bone_xforms[scene->animation->time][index];
-				auto restpo = vec4f(mesh->skinning->rest_pos[i].x, mesh->skinning->rest_pos[i].y, mesh->skinning->rest_pos[i].z, 1);
-				auto res = w * xform * restpo;
-				auto restno = vec4f(mesh->skinning->rest_norm[i].x, mesh->skinning->rest_norm[i].y, mesh->skinning->rest_norm[i].z, 1);
-				auto resn = w * xform * restno;
-				mesh->pos[i] += vec3f(res.x, res.y, res.z);
-				mesh->norm[i] += vec3f(resn.x, resn.y, resn.z);
+				// update position and normal
+				mesh->pos[i] += w * transform_point(xform, mesh->skinning->rest_pos[i]);
+				mesh->norm[i] += w * transform_normal(xform, mesh->skinning->rest_norm[i]);
 			}
+			// normalize normal
 			mesh->norm[i] = normalize(mesh->norm[i]);
 		}
-	}
-        // if no skinning, continue
-        // foreach vertex index
-            // set pos/norm to zero
-            // for each bone slot (0..3)
-                // get bone weight and index
-                // if index < 0, continue
-                // grab bone xform
-                // update position and normal
-            // normalize normal
+	}               
+            
 }
 
 // particle simulation
@@ -85,11 +87,9 @@ void simulate(Scene* scene) {
 		if (mesh->simulation == nullptr) continue;
         // compute time per step
 		auto timenow = scene->animation->dt/scene->animation->simsteps;
-		//message("%d\n", timenow);
         // foreach simulation steps
 		for (int i = 0; i < scene->animation->simsteps; i++){
             // compute extenal forces (gravity)
-
 			for (int j = 0; j < mesh->pos.size(); j++){
 				mesh->simulation->force[j] = scene->animation->gravity * mesh->simulation->mass[j];
 			}
@@ -97,18 +97,17 @@ void simulate(Scene* scene) {
             // for each spring, compute spring force on points
 			for (auto spring : mesh->simulation->springs){
 				// compute spring distance and length
-				
 				auto spring_length = length(mesh->pos[spring.ids.y] - mesh->pos[spring.ids.x]);
 				auto spring_direction = normalize(mesh->pos[spring.ids.y] - mesh->pos[spring.ids.x]);
 				auto rest_length = spring.restlength;
 				auto spring_relative_vel = mesh->simulation->vel[spring.ids.y] - mesh->simulation->vel[spring.ids.x];
 				// compute static force
-				auto static_force_on_pi = spring_direction * (spring_length - rest_length) * spring.ks;
+				auto static_force_on_pi = spring.ks * (spring_length - rest_length) * spring_direction;
 				// accumulate static force on points
 				mesh->simulation->force[spring.ids.x] += static_force_on_pi;
 				mesh->simulation->force[spring.ids.y] += - static_force_on_pi;
 				// compute dynamic force
-				auto dynamic_force = spring.kd * spring_direction * dot(spring_relative_vel, spring_direction);
+				auto dynamic_force = spring.kd * dot(spring_relative_vel, spring_direction) * spring_direction;
 				// accumulate dynamic force on points
 				mesh->simulation->force[spring.ids.x] += dynamic_force;
 				mesh->simulation->force[spring.ids.y] += - dynamic_force;
@@ -133,9 +132,10 @@ void simulate(Scene* scene) {
 						auto r = surf->radius;
                         // perform inside test
 						if (pl.z < 0 && -r < pl.x && pl.x < r && -r < pl.y && pl.y < r){
-							mesh->pos[j] = transform_point(surf->frame, vec3f(pl.x, pl.y, 0));
+							
 							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - dot(surf->frame.z, mesh->simulation->vel[j]) * surf->frame.z)*(1 - scene->animation->bounce_dump[0]) +
 								(- dot(surf->frame.z, mesh->simulation->vel[j])*surf->frame.z)*(1 - scene->animation->bounce_dump[1]);
+							mesh->pos[j] = transform_point(surf->frame, vec3f(pl.x, pl.y, 0));
 						}
                             // if inside, set position and normal
 					}
@@ -143,26 +143,23 @@ void simulate(Scene* scene) {
                         // inside test
 						auto sphere_center = surf->frame.o;
 						auto sphere_radius = surf->radius;
+						// if inside
 						if (length(mesh->pos[j] - sphere_center) < sphere_radius){
-							mesh->pos[j] = sphere_radius * normalize(mesh->pos[j] - sphere_center) + sphere_center;
+							// set particle position
+							
 							auto sphere_norm = normalize(mesh->pos[j] - sphere_center);
+							// update velocity
 							mesh->simulation->vel[j] = (mesh->simulation->vel[j] - dot(sphere_norm, mesh->simulation->vel[j]) * sphere_norm)*(1 - scene->animation->bounce_dump[0]) +
 								(-dot(sphere_norm, mesh->simulation->vel[j])*sphere_norm)*(1 - scene->animation->bounce_dump[1]);
+							mesh->pos[j] = sphere_radius * normalize(mesh->pos[j] - sphere_center) + sphere_center;
 						}
-
 					}
-                        
-                    // if inside
-                        // set particle position
-                        // update velocity
 				}
-                    
 			}
-        // smooth normals if it has triangles or quads
+			 // smooth normals if it has triangles or quads
 			if (mesh->quad.size() != 0 || mesh->triangle.size() != 0){
 				smooth_normals(mesh);
 			}
-
 		}
 	}
 }
