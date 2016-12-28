@@ -8,7 +8,31 @@ using std::thread;
 // lookup texture value
 vec3f lookup_scaled_texture(vec3f value, image3f* texture, vec2f uv, bool tile = false) {
     // YOUR CODE GOES HERE ----------------------
-    return value; // placeholder
+	if (texture == nullptr) return value;
+	auto i = int(uv.x * texture->width());
+	auto j = int(uv.y * texture->height());
+	auto i2 = i + 1;
+	auto j2 = j + 1;
+	if (!tile) {
+		i = clamp(i, 0, texture->width() - 1);
+		j = clamp(j, 0, texture->height() - 1);
+		i2 = clamp(i2, 0, texture->width() - 1);
+		j2 = clamp(j2, 0, texture->height() - 1);
+	}
+	else {
+		i = i % texture->width();
+		if (i < 0) i = i + texture->width();
+		j = j % texture->height();
+		if (j < 0) j = j + texture->height();
+		i2 = i2 % texture->width();
+		if (i2 < 0) i2 = i2 + texture->width();
+		j2 = j2 % texture->height();
+		if (j2 < 0) j2 = j2 + texture->height();
+	}
+	auto s = uv.x * texture->width() - i;
+	auto t = uv.y * texture->height() - j;
+	value = texture->at(i, j) * (1-s)*(1-t) + texture->at(i, j2) * (1-s) * t + texture->at(i2, j) * s * (1 - t) + texture->at(i2, j2) * s * t;
+	return value;
 }
 
 // compute the brdf
@@ -61,9 +85,12 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     auto intersection = intersect(scene,ray);
     
     // if not hit, return background (looking up the texture by converting the ray direction to latlong around y)
-    if(not intersection.hit) {
+    if(!intersection.hit) {
         // YOUR CODE GOES HERE ----------------------
-        return zero3f;
+		auto val = zero3f;
+		auto converted_direction = transform_point(scene->camera->frame, ray.d);
+		val = lookup_scaled_texture(val, scene->background_txt, vec2f(converted_direction.x+0.5, converted_direction.y));
+        return val;
     }
     
     // setup variables for shorter code
@@ -72,10 +99,13 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     auto v = -ray.d;
     
     // compute material values by looking up textures
-    // YOUR CODE GOES HERE ----------------------
-    auto ke = intersection.mat->ke;
-    auto kd = intersection.mat->kd;
-    auto ks = intersection.mat->ks;
+    // OK YOUR CODE GOES HERE ----------------------
+    //auto ke = intersection.mat->ke;
+	auto ke = lookup_scaled_texture(intersection.mat->ke, intersection.mat->ke_txt, intersection.texcoord);
+    //auto kd = intersection.mat->kd;
+	auto kd = lookup_scaled_texture(intersection.mat->kd, intersection.mat->kd_txt, intersection.texcoord);
+    //auto ks = intersection.mat->ks;
+	auto ks = lookup_scaled_texture(intersection.mat->ks, intersection.mat->ks_txt, intersection.texcoord);
     auto n = intersection.mat->n;
     auto mf = intersection.mat->microfacet;
     
@@ -83,7 +113,10 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     auto c = scene->ambient * kd;
     
     // add emission if on the first bounce
-    // YOUR CODE GOES HERE ----------------------
+    // MAYBE YOUR CODE GOES HERE ----------------------
+	if (depth == 0){
+		c += ke;
+	}
     
     // foreach point light
     for(auto light : scene->lights) {
@@ -109,36 +142,74 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     
     // YOUR AREA LIGHT CODE GOES HERE ----------------------
     // foreach surface
+	for (auto surface : scene->surfaces){
         // skip if no emission from surface
+		if (surface->mat->ke == zero3f) continue;
         // pick a point on the surface, grabbing normal, area and texcoord
+		auto uv = rng->next_vec2f();
+		auto s = transform_point(surface->frame, 2*surface->radius*(vec3f(uv.x-0.5, uv.y-0.5, 0)));
+
         // check if quad
-            // generate a 2d random number
-            // compute light position, normal, area
-            // set tex coords as random value got before
+		if (surface->isquad){
+			// generate a 2d random number
+			//uv = rng->next_vec2f();
+			// compute light position, normal, area
+			// set tex coords as random value got before
+		} 
         // else
-            // generate a 2d random number
-            // compute light position, normal, area
-            // set tex coords as random value got before
+		else {
+			// generate a 2d random number
+			// compute light position, normal, area
+			// set tex coords as random value got before
+		}
         // get light emission from material and texture
+		auto emission = lookup_scaled_texture(surface->mat->ke, surface->mat->ke_txt, vec2f(uv.x, uv.y));
         // compute light direction
+		auto l = normalize(s - pos);
         // compute light response
+		auto cl =  emission * 4 * surface->radius * surface->radius * max(zero3f, -dot(surface->frame.z, l)) / (lengthSqr(s - pos));
         // compute the material response (brdf*cos)
+		auto brdfcos = max(dot(norm, l), 0.0f) * eval_brdf(kd, ks, n, v, l, norm, mf);
         // multiply brdf and light
+		auto shade = cl * brdfcos;
         // check for shadows and accumulate if needed
+		if (shade == zero3f) continue;
         // if shadows are enabled
-            // perform a shadow check and accumulate
+		if (scene->path_shadows) {
+			// perform a shadow check and accumulate
+			if (!intersect_shadow(scene, ray3f::make_segment(pos, s))) c += shade;
+		}
         // else
-            // else just accumulate
-    
+		else {
+			// else just accumulate
+			c += shade;
+		}
+    }
+
     // YOUR ENVIRONMENT LIGHT CODE GOES HERE ----------------------
+	if (scene->background_txt != nullptr){
     // sample the brdf for environment illumination if the environment is there
+		auto ru = atan2(ray.d.x, ray.d.z) / (2 * PI);
+		auto rv = 1 - acos(ray.d.y) / PI;
+		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0.5);
         // pick direction and pdf
+		auto direction = s.first;
+		auto pdf = s.second;
         // compute the material response (brdf*cos)
         // accumulate recersively scaled by brdf*cos/pdf
+		auto cl = lookup_scaled_texture(intersection.mat->ke, scene->background_txt, vec2f(direction.x, direction.y)) / pdf;
+		auto shade = cl;
             // if shadows are enabled
+			if (scene->path_shadows) {
                 // perform a shadow check and accumulate
+				c += shade;
+			}
             // else
-                // else just accumulate
+			else {
+				// else just accumulate
+				c += shade;
+			}
+	}
 
     // YOUR INDIRECT ILLUMINATION CODE GOES HERE ----------------------
     // sample the brdf for indirect illumination
