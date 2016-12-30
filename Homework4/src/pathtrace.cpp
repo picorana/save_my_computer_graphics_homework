@@ -7,7 +7,7 @@ using std::thread;
 
 // lookup texture value
 vec3f lookup_scaled_texture(vec3f value, image3f* texture, vec2f uv, bool tile = false) {
-    // YOUR CODE GOES HERE ----------------------
+    // OK YOUR CODE GOES HERE ----------------------
 	if (texture == nullptr) return value;
 	auto i = int(uv.x * texture->width());
 	auto j = int(uv.y * texture->height());
@@ -45,8 +45,14 @@ vec3f eval_brdf(vec3f kd, vec3f ks, float n, vec3f v, vec3f l, vec3f norm, bool 
 // evaluate the environment map
 vec3f eval_env(vec3f ke, image3f* ke_txt, vec3f dir) {
     // YOUR CODE GOES HERE ----------------------
-    if(not ke_txt) return zero3f;
-    else return one3f;
+    //if(!ke_txt) return zero3f;
+	if (ke == zero3f) return zero3f;
+	else {
+		auto u = atan2(dir.x, dir.z) / (2 * PIf);
+		auto v = 1 - acos(dir.y) / PIf;
+		return lookup_scaled_texture(ke, ke_txt, vec2f(u, v), true);
+	}
+    //else return one3f;
 }
 
 // pick a direction according to the cosine (returns direction and its pdf)
@@ -87,10 +93,10 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     // if not hit, return background (looking up the texture by converting the ray direction to latlong around y)
     if(!intersection.hit) {
         // YOUR CODE GOES HERE ----------------------
-		auto val = zero3f;
-		auto converted_direction = transform_point(scene->camera->frame, ray.d);
-		val = lookup_scaled_texture(val, scene->background_txt, vec2f(converted_direction.x+0.5, converted_direction.y));
-        return val;
+		//auto u = atan2(ray.d.x, ray.d.z) / (2 * PIf);
+		//auto v = 1 - acos(ray.d.y) / PIf;
+		//val = lookup_scaled_texture(val, scene->background_txt, vec2f(u, v), true);
+        return eval_env(scene->background, scene->background_txt, ray.d);
     }
     
     // setup variables for shorter code
@@ -133,7 +139,7 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
         // if shadows are enabled
         if(scene->path_shadows) {
             // perform a shadow check and accumulate
-            if(not intersect_shadow(scene,ray3f::make_segment(pos,light->frame.o))) c += shade;
+            if(!intersect_shadow(scene,ray3f::make_segment(pos,light->frame.o))) c += shade;
         } else {
             // else just accumulate
             c += shade;
@@ -191,13 +197,13 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     // sample the brdf for environment illumination if the environment is there
 		auto ru = atan2(ray.d.x, ray.d.z) / (2 * PI);
 		auto rv = 1 - acos(ray.d.y) / PI;
-		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0.5);
+		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0);
         // pick direction and pdf
 		auto direction = s.first;
 		auto pdf = s.second;
         // compute the material response (brdf*cos)
         // accumulate recersively scaled by brdf*cos/pdf
-		auto cl = lookup_scaled_texture(intersection.mat->ke, scene->background_txt, vec2f(direction.x, direction.y)) / pdf;
+		auto cl = eval_env(scene->background, scene->background_txt, direction) / pdf;
 		auto shade = cl;
             // if shadows are enabled
 			if (scene->path_shadows) {
@@ -211,11 +217,21 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
 			}
 	}
 
+	/*
     // YOUR INDIRECT ILLUMINATION CODE GOES HERE ----------------------
-    // sample the brdf for indirect illumination
-        // pick direction and pdf
-        // compute the material response (brdf*cos)
-        // accumulate recersively scaled by brdf*cos/pdf
+	if (depth < 3){
+	// sample the brdf for indirect illumination
+		auto ru = atan2(ray.d.x, ray.d.z) / (2 * PI);
+		auto rv = 1 - acos(ray.d.y) / PI;
+		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0.5);
+		// pick direction and pdf
+		auto dir = s.first;
+		auto pdf = s.second;
+		// compute the material response (brdf*cos)
+		auto brdfcos = max(dot(norm, dir), 0.0f) * eval_brdf(kd, ks, n, v, dir, norm, mf);
+		// accumulate recersively scaled by brdf*cos/pdf
+		c += brdfcos * pathtrace_ray(scene, ray3f(intersection.pos, dir), rng, depth + 1);
+	}*/
     
     // return the accumulated color
     return c;
