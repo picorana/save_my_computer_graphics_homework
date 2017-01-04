@@ -1,0 +1,17 @@
+{
+    "lookat_camera": { "from": [0,1,-5] },
+    "meshes": [
+        {
+            "json_mesh": "models/mudkip.json",
+            "frame": { "o": [-1.25,0,-1] },
+            "material": { "kd": [0.5,0.7,0.5], "ks": [0.3,0.3,0.3], "n": 100 }
+        }
+    ],
+    "surfaces": [
+
+    ],
+    "background": [1,1,1],
+    "background_txt": "models/sara-portrait-3.pfm",
+    "image_samples": 15,
+    "path_max_depth": 0
+}

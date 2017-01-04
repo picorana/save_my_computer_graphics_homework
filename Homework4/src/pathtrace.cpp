@@ -8,38 +8,58 @@ using std::thread;
 // lookup texture value
 vec3f lookup_scaled_texture(vec3f value, image3f* texture, vec2f uv, bool tile = false) {
     // OK YOUR CODE GOES HERE ----------------------
-	if (texture == nullptr) return value;
+	if (!texture) return value;
 	auto i = int(uv.x * texture->width());
 	auto j = int(uv.y * texture->height());
 	auto i2 = i + 1;
 	auto j2 = j + 1;
-	if (!tile) {
+	auto s = uv.x * texture->width() - i;
+	auto t = uv.y * texture->height() - j;
+	if (tile) {
+
+		if (i < 0) i = i + texture->width();
+		i = i % texture->width();
+		if (j < 0) j = j + texture->height();
+		j = j % texture->height();
+
+		if (i2 < 0) i2 = i2 + texture->width();
+		i2 = i2 % texture->width();
+		if (j2 < 0) j2 = j2 + texture->height();
+		j2 = j2 % texture->height();
+
+	}
+	else {
 		i = clamp(i, 0, texture->width() - 1);
 		j = clamp(j, 0, texture->height() - 1);
 		i2 = clamp(i2, 0, texture->width() - 1);
 		j2 = clamp(j2, 0, texture->height() - 1);
+		
 	}
-	else {
-		i = i % texture->width();
-		if (i < 0) i = i + texture->width();
-		j = j % texture->height();
-		if (j < 0) j = j + texture->height();
-		i2 = i2 % texture->width();
-		if (i2 < 0) i2 = i2 + texture->width();
-		j2 = j2 % texture->height();
-		if (j2 < 0) j2 = j2 + texture->height();
-	}
-	auto s = uv.x * texture->width() - i;
-	auto t = uv.y * texture->height() - j;
-	value = texture->at(i, j) * (1-s)*(1-t) + texture->at(i, j2) * (1-s) * t + texture->at(i2, j) * s * (1 - t) + texture->at(i2, j2) * s * t;
-	return value;
+
+	return value * (texture->at(i, j)*(1 - s)*(1 - t) +
+		texture->at(i, j2)*(1 - s)*t +
+		texture->at(i2, j)*s*(1 - t) +
+		texture->at(i2, j2)*s*t);
 }
 
 // compute the brdf
 vec3f eval_brdf(vec3f kd, vec3f ks, float n, vec3f v, vec3f l, vec3f norm, bool microfacet) {
     // YOUR CODE GOES HERE ----------------------
-    auto h = normalize(v+l); // placeholder (non-microfacet model)
-    return kd/pif + ks*(n+8)/(8*pif) * pow(max(0.0f,dot(norm,h)),n); // placeholder (non-microfacet model)
+	if (microfacet){
+		auto h = normalize(v + l);
+		auto d = ((n + 2) / (2 * PI)) * pow(max(0.0f, dot(norm, h)), n);
+		auto f = ks + (one3f-ks)*pow((1-dot(h, l)), 5);
+		auto g = min(1.0f, 
+			(2 * (dot(h, norm))*dot(v, norm)) / (dot(v, h))
+			);
+		g = min(g, (2 * (dot(h, norm))*dot(l, norm)) / (dot(l, h)));
+		return d*g*f/(4*dot(l, norm)*dot(v, norm));
+	}
+	else {
+		auto h = normalize(v + l);
+		return kd / pif + ks*(n + 8) / (8 * pif) * pow(max(0.0f, dot(norm, h)), n);
+	}
+
 }
 
 // evaluate the environment map
@@ -92,10 +112,6 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     
     // if not hit, return background (looking up the texture by converting the ray direction to latlong around y)
     if(!intersection.hit) {
-        // YOUR CODE GOES HERE ----------------------
-		//auto u = atan2(ray.d.x, ray.d.z) / (2 * PIf);
-		//auto v = 1 - acos(ray.d.y) / PIf;
-		//val = lookup_scaled_texture(val, scene->background_txt, vec2f(u, v), true);
         return eval_env(scene->background, scene->background_txt, ray.d);
     }
     
@@ -120,7 +136,7 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     
     // add emission if on the first bounce
     // MAYBE YOUR CODE GOES HERE ----------------------
-	if (depth == 0){
+	if (depth == 0 && dot(v, norm)>0){
 		c += ke;
 	}
     
@@ -154,26 +170,36 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
         // pick a point on the surface, grabbing normal, area and texcoord
 		auto uv = rng->next_vec2f();
 		auto s = transform_point(surface->frame, 2*surface->radius*(vec3f(uv.x-0.5, uv.y-0.5, 0)));
-
+		vec3f light_pos;
+		vec3f light_norm;
+		float light_area;
         // check if quad
 		if (surface->isquad){
 			// generate a 2d random number
 			//uv = rng->next_vec2f();
 			// compute light position, normal, area
 			// set tex coords as random value got before
+			light_pos = surface->frame.o + (uv.x - 0.5f)*2.0f*surface->radius*surface->frame.x + (uv.y - 0.5f)*2.0f*surface->radius*surface->frame.y;
+			light_norm = normalize(surface->frame.z);
+			light_area = 4.0f*pow(surface->radius, 2);
 		} 
         // else
 		else {
 			// generate a 2d random number
 			// compute light position, normal, area
 			// set tex coords as random value got before
+			vec3f dir = normalize(sample_direction_spherical_uniform(uv));
+			light_pos = surface->frame.o + surface->radius*dir;
+			light_norm = normalize(dir);
+			light_area = 4.0f*pif*pow(surface->radius, 2);
 		}
+		s = light_pos;
         // get light emission from material and texture
-		auto emission = lookup_scaled_texture(surface->mat->ke, surface->mat->ke_txt, vec2f(uv.x, uv.y));
+		auto emission = lookup_scaled_texture(surface->mat->ke, surface->mat->ke_txt, vec2f(uv.x, uv.y), true);
         // compute light direction
 		auto l = normalize(s - pos);
         // compute light response
-		auto cl =  emission * 4 * surface->radius * surface->radius * max(zero3f, -dot(surface->frame.z, l)) / (lengthSqr(s - pos));
+		auto cl =  emission * light_area * max(zero3f, -dot(light_norm, l)) / (lengthSqr(s - pos));
         // compute the material response (brdf*cos)
 		auto brdfcos = max(dot(norm, l), 0.0f) * eval_brdf(kd, ks, n, v, l, norm, mf);
         // multiply brdf and light
@@ -195,20 +221,22 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     // YOUR ENVIRONMENT LIGHT CODE GOES HERE ----------------------
 	if (scene->background_txt != nullptr){
     // sample the brdf for environment illumination if the environment is there
-		auto ru = atan2(ray.d.x, ray.d.z) / (2 * PI);
-		auto rv = 1 - acos(ray.d.y) / PI;
-		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0);
+		auto s = sample_brdf(kd, ks, n, v, norm, rng->next_vec2f(), rng->next_float());
         // pick direction and pdf
 		auto direction = s.first;
 		auto pdf = s.second;
         // compute the material response (brdf*cos)
+		auto brdfcos = max(dot(norm, direction), 0.0f) * eval_brdf(kd, ks, n, v, direction, norm, mf);
         // accumulate recersively scaled by brdf*cos/pdf
-		auto cl = eval_env(scene->background, scene->background_txt, direction) / pdf;
-		auto shade = cl;
+		auto cl = eval_env(scene->background, scene->background_txt, direction);
+		auto shade = brdfcos*cl / pdf;
+		/*if (depth < scene->path_max_depth) {
+			shade += brdfcos* pathtrace_ray(scene, ray, rng, depth+1) / pdf;
+		}*/
             // if shadows are enabled
 			if (scene->path_shadows) {
                 // perform a shadow check and accumulate
-				c += shade;
+				if (!intersect_shadow(scene, ray3f(intersection.pos, direction))) c+=shade;
 			}
             // else
 			else {
@@ -217,21 +245,19 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
 			}
 	}
 
-	/*
+	
     // YOUR INDIRECT ILLUMINATION CODE GOES HERE ----------------------
-	if (depth < 3){
+	if (depth < scene->path_max_depth){
 	// sample the brdf for indirect illumination
-		auto ru = atan2(ray.d.x, ray.d.z) / (2 * PI);
-		auto rv = 1 - acos(ray.d.y) / PI;
-		auto s = sample_brdf(kd, ks, n, v, norm, vec2f(ru, rv), 0.5);
+		auto s = sample_brdf(kd, ks, n, v, norm, rng->next_vec2f(), rng->next_float());
 		// pick direction and pdf
-		auto dir = s.first;
+		auto direction = s.first;
 		auto pdf = s.second;
 		// compute the material response (brdf*cos)
-		auto brdfcos = max(dot(norm, dir), 0.0f) * eval_brdf(kd, ks, n, v, dir, norm, mf);
+		auto brdfcos = max(dot(norm, direction), 0.0f) * eval_brdf(kd, ks, n, v, direction, norm, mf);
 		// accumulate recersively scaled by brdf*cos/pdf
-		c += brdfcos * pathtrace_ray(scene, ray3f(intersection.pos, dir), rng, depth + 1);
-	}*/
+		c += pathtrace_ray(scene, ray3f(intersection.pos, direction), rng, depth + 1)*brdfcos/pdf;
+	}
     
     // return the accumulated color
     return c;
@@ -313,7 +339,7 @@ int main(int argc, char** argv) {
         args.object_element("image_filename").as_string() :
         scene_filename.substr(0,scene_filename.size()-5)+".png";
     auto scene = load_json_scene(scene_filename);
-    if(not args.object_element("resolution").is_null()) {
+    if(!args.object_element("resolution").is_null()) {
         scene->image_height = args.object_element("resolution").as_int();
         scene->image_width = scene->camera->width * scene->image_height / scene->camera->height;
     }
