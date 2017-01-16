@@ -1,0 +1,63 @@
+{
+    "lookat_camera": { "from": [-2,2,5] },
+    "meshes": [
+        {
+            "json_mesh": "models/macbook/macbook_corpo.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,1,1], "ks": [0.5,0.5,0.5], "n": 5000, "microfacet": true}
+        },
+        {
+            "json_mesh": "models/macbook/macbook_schermo.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,1,1], "ks": [0.5,0.5,0.5], "n": 5000, "microfacet": true}
+        },
+        {
+            "json_mesh": "models/macbook/macbook_back.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,1,1], "ks": [0.5,0.5,0.5], "n": 5000, "microfacet": true}
+        },
+        {
+            "json_mesh": "models/macbook/macbook_desktop.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,1,1], "ks": [0,0,0], "ke": [0.5,0.5,0.5], "n": 100, "ke_txt":"models/macbook/desktop.png", "kd_txt":"models/macbook/desktop.png"}
+        },
+        {
+            "json_mesh": "models/macbook/macbook_tastiera.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [0.5,0.5,0.5], "ks": [0,0,0], "ke": [0.5,0.5,0.5], "n": 100, "kd_txt":"models/macbook/TASTIERA_map.png", "ke_txt":"models/macbook/TASTIERA_map.png"}
+        },
+        {
+            "json_mesh": "models/macbook/macbook_parts.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [0,0,0], "ks": [0,0,0], "n": 100}
+        },
+        {
+            "json_mesh": "models/macbook/plane.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,0,0], "ks": [0,0,0], "n": 100}
+        },
+        {
+            "json_mesh": "models/macbook/plane2.json",
+            "frame": { "o": [0,-1,0] },
+            "material": { "kd": [1,0,0], "ks": [0,0,0], "n": 100}
+        }
+    ],
+    "surfaces": [
+        {
+            "frame": { "o": [0,-1,0], "x": [1,0,0], "y": [0,0,-1], "z": [0,1,0] },
+            "radius":  10, "isquad": true,
+            "material": { "kd": [1,1,1], "ks": [0,0,0], "n": 100 }
+        },
+        {
+            "frame": { "from": [0,10,5] },
+            "radius": 2.5, "isquad": true,
+            "material": { "ke": [10,10,10], "kd": [0,0,0], "ks": [0,0,0], "n": 100 }
+        }
+    ],
+    "lights": [
+        { "frame": { "o": [4,12,5] }, "intensity": [60,60,60] }
+    ],
+    "background": [0,0,0],
+    "image_samples": 64,
+    "path_max_depth": 1
+}

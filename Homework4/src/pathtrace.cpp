@@ -119,6 +119,18 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
     auto pos = intersection.pos;
     auto norm = intersection.norm;
     auto v = -ray.d;
+
+	// depth of field
+	/*auto focal_distance = 3.64;
+	//message("%f ", dist(ray.e, intersection.pos));
+	if (true /*depth == 0 && dist(ray.e, intersection.pos)<focal_distance*/
+		/*auto offset = rng->next_float();
+		auto p = ray.e + ray.d * (focal_distance/scene->image_width);
+		ray.e = ray.e + vec3f(offset, offset, 0);
+		ray.d = (p - ray.e);
+		v = -ray.d;
+	}*/
+	//else message("b");
     
     // compute material values by looking up textures
     // OK YOUR CODE GOES HERE ----------------------
@@ -245,10 +257,10 @@ vec3f pathtrace_ray(Scene* scene, ray3f ray, Rng* rng, int depth) {
 			}
 	}
 
-	
     // YOUR INDIRECT ILLUMINATION CODE GOES HERE ----------------------
 	if (depth < scene->path_max_depth){
-	// sample the brdf for indirect illumination
+		
+		// sample the brdf for indirect illumination
 		auto s = sample_brdf(kd, ks, n, v, norm, rng->next_vec2f(), rng->next_float());
 		// pick direction and pdf
 		auto direction = s.first;
